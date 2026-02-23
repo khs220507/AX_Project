@@ -8,9 +8,26 @@ def predict_sales(
     historical_sales: list[dict],
     area_code: str,
     business_type_code: str,
+    model_manager=None,
+    pop_by_q: dict | None = None,
+    sales_by_q: dict | None = None,
+    store_by_q: dict | None = None,
 ) -> dict:
-    """과거 매출 데이터 기반 다음 분기 매출 예측 (선형회귀 + 계절성)"""
+    """과거 매출 데이터 기반 다음 분기 매출 예측 (PyTorch LSTM 우선, fallback: 선형회귀)"""
 
+    # PyTorch LSTM 모델 시도
+    if model_manager and model_manager.is_ready("sales_lstm") and pop_by_q and sales_by_q and store_by_q:
+        try:
+            result = model_manager.predict_sales_lstm(
+                area_code, business_type_code, pop_by_q, sales_by_q, store_by_q,
+            )
+            if result:
+                result["model_used"] = "LSTM"
+                return result
+        except Exception as e:
+            logger.warning(f"LSTM prediction failed, falling back: {e}")
+
+    # 기존 선형회귀 fallback
     # 해당 상권+업종의 분기별 매출 추출
     filtered = [
         r for r in historical_sales
@@ -120,6 +137,7 @@ def predict_sales(
         "historical": [
             {"quarter": q["label"], "sales": q["sales"]} for q in quarterly
         ],
+        "model_used": "linear_regression",
     }
 
 

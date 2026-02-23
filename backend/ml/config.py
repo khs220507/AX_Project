@@ -1,0 +1,95 @@
+"""ML 모델 설정: 피처 필드 정의, 하이퍼파라미터"""
+
+from pathlib import Path
+
+# ── 경로 ──────────────────────────────────────────────────
+MODEL_DIR = Path(__file__).resolve().parent.parent / "data" / "ml_models"
+
+# ── 피처 필드 정의 ────────────────────────────────────────
+POP_TIME_FIELDS = [f"TMZON_{i}_FLPOP_CO" for i in range(1, 7)]
+POP_DAY_FIELDS = [
+    "MON_FLPOP_CO", "TUES_FLPOP_CO", "WED_FLPOP_CO",
+    "THUR_FLPOP_CO", "FRI_FLPOP_CO", "SAT_FLPOP_CO", "SUN_FLPOP_CO",
+]
+POP_AGE_FIELDS = [
+    "AGRDE_10_FLPOP_CO", "AGRDE_20_FLPOP_CO", "AGRDE_30_FLPOP_CO",
+    "AGRDE_40_FLPOP_CO", "AGRDE_50_FLPOP_CO",
+]
+
+SALES_TIME_FIELDS = [f"TMZON_{i}_SELNG_AMT" for i in range(1, 7)]
+SALES_DAY_FIELDS = [
+    "MON_SELNG_AMT", "TUES_SELNG_AMT", "WED_SELNG_AMT",
+    "THUR_SELNG_AMT", "FRI_SELNG_AMT", "SAT_SELNG_AMT", "SUN_SELNG_AMT",
+]
+SALES_AGE_FIELDS = [
+    "AGRDE_10_SELNG_AMT", "AGRDE_20_SELNG_AMT", "AGRDE_30_SELNG_AMT",
+    "AGRDE_40_SELNG_AMT", "AGRDE_50_SELNG_AMT",
+]
+
+STORE_FIELDS = ["STOR_CO", "OPBIZ_STOR_CO", "CLSBIZ_STOR_CO", "SIMILR_INDUTY_STOR_CO"]
+
+FACILITY_FIELDS = [
+    "SUBWAY_STATN_CO", "BUS_STTN_CO",
+    "ELESCH_CO", "MSKUL_CO", "HGSCHL_CO", "UNIV_CO",
+    "GNRL_HSPTL_CO", "GEHSPT_CO",
+    "VIATR_FCLTY_CO", "SUPMK_CO", "THEAT_CO", "STAYNG_FCLTY_CO", "BANK_CO",
+]
+
+# 시계열 피처 (LSTM용): pop(18) + sales(18) + store(4) = 40
+TIMESERIES_FIELDS = POP_TIME_FIELDS + POP_DAY_FIELDS + POP_AGE_FIELDS \
+    + SALES_TIME_FIELDS + SALES_DAY_FIELDS + SALES_AGE_FIELDS \
+    + STORE_FIELDS
+
+# 전체 피처 (MLP/앙상블용): timeseries(40) + facility(13) + temporal(2) + location(2) + biz(1) = 58
+# biz 인덱스는 임베딩용이므로 별도 처리, 실제 수치 피처는 57개
+NUM_TIMESERIES_FEATURES = len(TIMESERIES_FIELDS)  # 40
+NUM_FACILITY_FEATURES = len(FACILITY_FIELDS)       # 13
+NUM_STATIC_FEATURES = NUM_TIMESERIES_FEATURES + NUM_FACILITY_FEATURES + 4  # 57 (+ year, quarter, lat, lng)
+
+# 업종 코드 → 인덱스 매핑
+BIZ_CODE_TO_IDX = {
+    "CS100001": 0, "CS100002": 1, "CS100003": 2, "CS100004": 3,
+    "CS100005": 4, "CS100006": 5, "CS100007": 6, "CS100008": 7,
+    "CS100009": 8, "CS100010": 9, "CS200001": 10, "CS200002": 11,
+    "CS200003": 12, "CS200004": 13, "CS200005": 14,
+}
+NUM_BIZ_TYPES = len(BIZ_CODE_TO_IDX)  # 15
+
+# ── 하이퍼파라미터 ────────────────────────────────────────
+# LSTM (매출 예측)
+LSTM_HIDDEN_DIM = 64
+LSTM_NUM_LAYERS = 2
+LSTM_DROPOUT = 0.2
+LSTM_OUTPUT_STEPS = 4
+LSTM_EPOCHS = 100
+LSTM_LR = 0.001
+LSTM_BATCH_SIZE = 64
+LSTM_MIN_QUARTERS = 4  # 최소 시퀀스 길이
+
+# MLP (생존 예측)
+SURVIVAL_HIDDEN_DIMS = [128, 64, 32]
+SURVIVAL_DROPOUT = 0.3
+SURVIVAL_EPOCHS = 100
+SURVIVAL_LR = 0.001
+SURVIVAL_BATCH_SIZE = 128
+
+# 앙상블 (상권 점수)
+SCORING_MLP_HIDDEN_DIMS = [128, 64]
+SCORING_MLP_DROPOUT = 0.2
+SCORING_MLP_EPOCHS = 100
+SCORING_MLP_LR = 0.001
+SCORING_XGB_WEIGHT = 0.6
+SCORING_MLP_WEIGHT = 0.4
+
+# 추천 (업종 추천)
+REC_BIZ_EMBED_DIM = 16
+REC_HIDDEN_DIM = 64
+REC_DROPOUT = 0.2
+REC_EPOCHS = 80
+REC_LR = 0.001
+REC_BATCH_SIZE = 256
+
+# 공통
+EARLY_STOPPING_PATIENCE = 10
+VAL_SPLIT = 0.2
+MAX_VERSIONS_KEEP = 3

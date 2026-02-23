@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
+html {
+  font-size: 24px;
+}
+
 body {
   margin: 0;
   font-family:

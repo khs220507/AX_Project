@@ -124,7 +124,7 @@ export function DashboardLayout() {
       {/* 메인 컨텐츠 */}
       <div className="flex-1 flex flex-col md:flex-row gap-4 p-4 min-h-0">
         {/* 지도 */}
-        <div className="md:w-3/5 h-[50vh] md:h-full relative">
+        <div className="md:w-2/5 h-[50vh] md:h-full relative">
           {loading && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-slate-800/90 px-4 py-2 rounded-full shadow text-sm text-slate-300 border border-slate-700">
               {isSeoul ? "상권 데이터 로딩 중..." : "점포 데이터 로딩 중..."}
@@ -148,7 +148,7 @@ export function DashboardLayout() {
         </div>
 
         {/* 분석 패널 */}
-        <div className="md:w-2/5 h-[50vh] md:h-full overflow-y-auto">
+        <div className="md:w-3/5 h-[50vh] md:h-full overflow-y-auto">
           <AnalysisPanel
             isSeoul={isSeoul}
             selectedSido={selectedSido}

@@ -73,8 +73,10 @@ async def get_advanced_models(
     customer = compute_customer_profile(code, pop_data, sales_data)
     delivery = compute_delivery_optimization(code, pop_data, sales_data, store_data)
     menu_trend = compute_menu_trend(code, sales_data, store_data, multi_q_sales)
+    model_manager = getattr(request.app.state, "model_manager", None)
     survival = compute_survival_prediction(
-        code, store_data, store_data_by_quarter, pop_data, sales_data
+        code, store_data, store_data_by_quarter, pop_data, sales_data,
+        model_manager=model_manager, facility_data=facility_data,
     )
     district = guess_district(area_info.get("name", ""))
     financial = compute_financial_diagnosis(

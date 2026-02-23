@@ -128,8 +128,9 @@ def compute_location_score(
     store_data: list[dict],
     facility_data: list[dict] | None = None,
     change_idx_data: list[dict] | None = None,
+    model_manager=None,
 ) -> dict:
-    """입지점수 산출 (0~100) + 항목별 breakdown"""
+    """입지점수 산출 (0~100) + 항목별 breakdown. ML 앙상블 우선, fallback: 룰 기반"""
 
     area_sales = [r for r in sales_data if str(r.get("TRDAR_CD")) == area_code]
     area_pop = [r for r in pop_data if str(r.get("TRDAR_CD")) == area_code]
@@ -227,7 +228,20 @@ def compute_location_score(
     weights = [0.20, 0.18, 0.15, 0.12, 0.08, 0.08, 0.10, 0.09]
     total_score = _clamp(sum(b["score"] * w for b, w in zip(breakdown, weights)))
 
-    return {"total_score": total_score, "breakdown": breakdown}
+    # ML 앙상블 점수 시도
+    model_used = "rule_based"
+    if model_manager and model_manager.is_ready("scoring_ensemble"):
+        try:
+            ml_score = model_manager.predict_score(
+                area_code, pop_data, sales_data, store_data, facility_data,
+            )
+            if ml_score is not None:
+                total_score = ml_score
+                model_used = "ensemble"
+        except Exception:
+            pass
+
+    return {"total_score": total_score, "breakdown": breakdown, "model_used": model_used}
 
 
 def generate_grade(score: int) -> str:
@@ -435,8 +449,10 @@ def recommend_missing_businesses(
     sales_data: list[dict],
     store_data: list[dict],
     pop_data: list[dict],
+    model_manager=None,
+    facility_data: list[dict] | None = None,
 ) -> list[dict]:
-    """해당 상권에 없는 업종 중 추천할만한 업종 분석"""
+    """해당 상권에 없는 업종 중 추천할만한 업종 분석 (ML 추천 모델 우선)"""
     # 1. 이 상권에 존재하는 업종 코드 찾기
     area_stores = [r for r in store_data if str(r.get("TRDAR_CD")) == area_code]
     existing_biz = set()

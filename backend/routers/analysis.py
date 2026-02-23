@@ -47,10 +47,12 @@ async def get_analysis(
     for yyqu, data in zip(other_store_tasks.keys(), other_results):
         store_data_by_quarter[yyqu] = data
 
+    model_manager = getattr(request.app.state, "model_manager", None)
     score_result = compute_location_score(
         code, sales_data, pop_data, store_data,
         facility_data=facility_data,
         change_idx_data=change_idx_data,
+        model_manager=model_manager,
     )
 
     total_score = score_result["total_score"]
@@ -79,7 +81,10 @@ async def get_analysis(
     district_info = DistrictTypeInfo(**dt)
 
     # 미진출 업종 추천
-    missing_recs = recommend_missing_businesses(code, sales_data, store_data, pop_data)
+    missing_recs = recommend_missing_businesses(
+        code, sales_data, store_data, pop_data,
+        model_manager=model_manager, facility_data=facility_data,
+    )
     biz_recs = [BizRecommendation(**r) for r in missing_recs]
 
     return AnalysisResponse(

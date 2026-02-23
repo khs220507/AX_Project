@@ -29,7 +29,25 @@ async def predict(request: Request, body: PredictRequest):
         raise HTTPException(503, "매출 데이터를 가져올 수 없습니다")
 
     biz_name = get_biz_name(body.business_type)
-    result = predict_sales(all_sales, body.area_code, body.business_type)
+    model_manager = getattr(request.app.state, "model_manager", None)
+
+    # LSTM용 분기별 데이터
+    pop_by_q = {}
+    sales_by_q = {}
+    store_by_q = {}
+    if model_manager and model_manager.is_ready("sales_lstm"):
+        for yyqu in RECENT_QUARTERS:
+            pop_by_q[yyqu] = await client.get_floating_pop(yyqu)
+            store_by_q[yyqu] = await client.get_stores(yyqu)
+            sales_by_q[yyqu] = [r for r in all_sales if str(r.get("STDR_YYQU_CD", "")) == yyqu]
+
+    result = predict_sales(
+        all_sales, body.area_code, body.business_type,
+        model_manager=model_manager,
+        pop_by_q=pop_by_q or None,
+        sales_by_q=sales_by_q or None,
+        store_by_q=store_by_q or None,
+    )
 
     return PredictResponse(
         area_code=result["area_code"],

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -7,6 +8,7 @@ from config import get_settings
 from services.seoul_api import SeoulAPIClient
 from services.semas_api import SEMASAPIClient
 from routers import areas, analysis, prediction, trends, compare, regions, geojson, news, models, policy
+from routers import ml_admin
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -43,6 +45,42 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to preload areas: {e}")
 
+    # 핵심 데이터 프리캐싱 — 8분기 × 3종 + 특수 데이터 전부 선로드
+    from services.data_processor import RECENT_QUARTERS
+    try:
+        logger.info("Preloading all core datasets...")
+        tasks = []
+        for yyqu in RECENT_QUARTERS:
+            tasks.append(client.get_sales(yyqu))
+            tasks.append(client.get_floating_pop(yyqu))
+            tasks.append(client.get_stores(yyqu))
+        # 최신 분기 특수 데이터
+        tasks.append(client.get_facilities("20253"))
+        tasks.append(client.get_change_index("20253"))
+        tasks.append(client.get_worker_pop("20253"))
+        tasks.append(client.get_resident_pop("20253"))
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        ok = sum(1 for r in results if not isinstance(r, Exception))
+        logger.info(f"Preload complete: {ok}/{len(results)} datasets cached")
+    except Exception as e:
+        logger.warning(f"Preload failed: {e}")
+
+    # ML 모델 초기화
+    try:
+        from ml.serving.manager import ModelManager
+        model_manager = ModelManager()
+        app.state.model_manager = model_manager
+        loaded = model_manager.load_all()
+        logger.info(f"ML models loaded: {loaded}/4")
+
+        if model_manager.needs_training():
+            logger.info("Scheduling background ML model training...")
+            asyncio.create_task(model_manager.train_all(client))
+    except Exception as e:
+        logger.warning(f"ML module init failed (non-fatal): {e}")
+        app.state.model_manager = None
+
     yield
 
     # 종료 시 클라이언트 정리
@@ -77,6 +115,7 @@ app.include_router(geojson.router)
 app.include_router(news.router)
 app.include_router(models.router)
 app.include_router(policy.router)
+app.include_router(ml_admin.router)
 
 
 @app.get("/")

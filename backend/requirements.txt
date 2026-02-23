@@ -4,3 +4,9 @@ pydantic
 pydantic-settings
 httpx
 python-dotenv
+beautifulsoup4
+torch
+numpy
+scikit-learn
+xgboost
+joblib

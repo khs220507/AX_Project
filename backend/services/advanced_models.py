@@ -365,7 +365,19 @@ def compute_survival_prediction(
     store_data_by_quarter: dict[str, list[dict]],
     pop_data: list[dict],
     sales_data: list[dict],
+    model_manager=None,
+    facility_data: list[dict] | None = None,
 ) -> dict:
+    # PyTorch MLP 생존 예측 시도
+    ml_survival = None
+    if model_manager and model_manager.is_ready("survival_mlp"):
+        try:
+            ml_survival = model_manager.predict_survival(
+                area_code, pop_data, sales_data, store_data, facility_data,
+            )
+        except Exception as e:
+            logger.warning(f"ML survival prediction failed: {e}")
+
     area_stores = [r for r in store_data if str(r.get("TRDAR_CD")) == area_code]
     area_pop = [r for r in pop_data if str(r.get("TRDAR_CD")) == area_code]
     area_sales = [r for r in sales_data if str(r.get("TRDAR_CD")) == area_code]
@@ -484,7 +496,7 @@ def compute_survival_prediction(
     if positive_factors:
         parts.append(f"'{positive_factors[0]['factor']}' 등 긍정 요인도 있습니다")
 
-    return {
+    result = {
         "survival_1yr": survival_1yr,
         "survival_3yr": survival_3yr,
         "survival_5yr": survival_5yr,
@@ -493,7 +505,27 @@ def compute_survival_prediction(
         "positive_factors": positive_factors,
         "grade": grade,
         "recommendation": ". ".join(parts),
+        "model_used": "rule_based",
     }
+
+    # ML 결과로 생존율 덮어쓰기 (위험/긍정 요인 등은 룰 기반 유지)
+    if ml_survival:
+        result["survival_1yr"] = ml_survival["survival_1yr"]
+        result["survival_3yr"] = ml_survival["survival_3yr"]
+        result["survival_5yr"] = ml_survival["survival_5yr"]
+        result["model_used"] = "MLP"
+        # grade 재계산
+        s3 = ml_survival["survival_3yr"]
+        if s3 >= 70:
+            result["grade"] = "안전"
+        elif s3 >= 50:
+            result["grade"] = "양호"
+        elif s3 >= 30:
+            result["grade"] = "주의"
+        else:
+            result["grade"] = "위험"
+
+    return result
 
 
 # ── 8. 재무 진단 ──────────────────────────────────────────
